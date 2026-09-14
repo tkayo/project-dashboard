@@ -1,0 +1,54 @@
+{
+  "social_posts": [
+    {
+      "id": 1789416091462,
+      "platform": "X",
+      "handle": "@tkayosf",
+      "text": "Done with the rat race. Building Kokoro Kids 心.",
+      "scheduled_date": "2026-09-14",
+      "scheduled_time": "10:00",
+      "image": false,
+      "posted": true,
+      "project": "kokorokids",
+      "tweet_id": "2099585668154601605"
+    },
+    {
+      "id": 1789416091476,
+      "platform": "X",
+      "handle": "@tkayosf",
+      "text": "My daughter Kaia's art from TK to Kinder. This is what Kokoro Kids preserves.",
+      "scheduled_date": "2026-09-15",
+      "scheduled_time": "09:00",
+      "image": true,
+      "posted": false,
+      "project": "kokorokids"
+    }
+  ],
+  "expenses": [
+    {
+      "id": 1789416091486,
+      "date": "2026-09-14",
+      "item": "X API credits (5K tweets)",
+      "category": "Software",
+      "cost": 5.0,
+      "project": "kokorokids"
+    }
+  ],
+  "waitlist": [
+    {
+      "email": "test@ratracer.dev",
+      "date": "2026-09-14T19:24:00",
+      "source": "formspree"
+    }
+  ],
+  "waitlist_count": 1,
+  "projects": {
+    "kokorokids": {
+      "display_name": "Kokoro Kids 心",
+      "directory": "kokorokids",
+      "goal": 50,
+      "niche": "Kids Creativity",
+      "status": "validation"
+    }
+  }
+}

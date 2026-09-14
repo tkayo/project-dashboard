@@ -48,7 +48,54 @@
       "directory": "kokorokids",
       "goal": 50,
       "niche": "Kids Creativity",
-      "status": "validation"
+      "status": "validation",
+      "github": "https://github.com/tkayo/kokorokids",
+      "cloudflare": "https://kokorokids.pages.dev"
+    },
+    "yatsing": {
+      "display_name": "YatSing",
+      "directory": "yatsing",
+      "goal": null,
+      "niche": "Restaurant",
+      "status": "live",
+      "github": "https://github.com/tkayo/yatsing",
+      "cloudflare": "https://yatsing.pages.dev"
+    },
+    "sass_boilerplate": {
+      "display_name": "SaaS Boilerplate",
+      "directory": "sass_boilerplate",
+      "goal": null,
+      "niche": "DevTools",
+      "status": "tool",
+      "github": "https://github.com/tkayo/sass_boilerplate",
+      "cloudflare": null
+    },
+    "project-dashboard": {
+      "display_name": "Project Dashboard",
+      "directory": "project-dashboard",
+      "goal": null,
+      "niche": "DevTools",
+      "status": "live",
+      "github": "https://github.com/tkayo/project-dashboard",
+      "cloudflare": null
+    },
+    "agentic-factory": {
+      "display_name": "Agentic Factory",
+      "directory": "agentic-factory",
+      "goal": null,
+      "niche": "AI Agents",
+      "status": "building",
+      "github": null,
+      "cloudflare": null
+    },
+    "factguard_legacy": {
+      "display_name": "FactGuard Legacy",
+      "directory": "factguard_legacy",
+      "goal": null,
+      "niche": "Civic Tech",
+      "status": "killed",
+      "github": "https://github.com/tkayo/my-take-home",
+      "cloudflare": null
     }
   }
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Project Dashboard v2 — with detail views and Chart.js integration."""
+"""Project Dashboard v3 — Fast scanning with detailed project views and links."""
 
 import json
 import os
@@ -34,9 +34,9 @@ def save_data(data):
         json.dump(data, f, indent=2)
 
 
-def run_cmd(cmd, timeout=10):
+def run_cmd(cmd, cwd=None, timeout=2):
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        r = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True, timeout=timeout)
         if r.returncode == 0:
             return r.stdout.strip()
     except:
@@ -48,46 +48,70 @@ def scan_projects():
     projects = []
     if not os.path.exists(PROJECTS_DIR):
         return projects
+    
+    # Exclude non-projects
+    skip_dirs = {'hermes-matrix-dashboard', 'venv', 'node_modules', '.git', '__pycache__'}
+    
     for name in sorted(os.listdir(PROJECTS_DIR)):
         path = os.path.join(PROJECTS_DIR, name)
-        if not os.path.isdir(path) or name.startswith('.') or name.startswith('__'):
-            continue
-        if name in ('hermes-matrix-dashboard', 'project-dashboard', 'venv', 'node_modules'):
+        if not os.path.isdir(path) or name.startswith('.') or name.startswith('__') or name in skip_dirs:
             continue
 
-        p = {"name": name, "path": path, "framework": "unknown", "status": "unknown",
-             "url": None, "git_last_commit_msg": None, "git_last_commit_date": None,
-             "total_files": 0, "file_counts": {}}
+        p = {
+            "name": name,
+            "path": path,
+            "framework": "unknown",
+            "status": "unknown",
+            "url": None,
+            "git_branch": None,
+            "git_last_commit_msg": None,
+            "git_last_commit_date": None,
+            "total_files": 0,
+        }
 
+        # Fast git metadata check
         branch = run_cmd(["git", "rev-parse", "--abbrev-ref", "HEAD"], cwd=path)
         if branch:
             p["git_branch"] = branch
 
-        lc = run_cmd(["git", "log", "-1", "--format=%H|%s|%ci"], cwd=path)
-        if lc:
-            parts = lc.split("|", 2)
-            if len(parts) == 3:
-                p["git_last_commit_msg"] = parts[1]
-                p["git_last_commit_date"] = parts[2]
+        lc = run_cmd(["git", "log", "-1", "--format=%s|%ci"], cwd=path)
+        if lc and "|" in lc:
+            parts = lc.split("|", 1)
+            p["git_last_commit_msg"] = parts[0]
+            p["git_last_commit_date"] = parts[1]
 
-        for root, dirs, files in os.walk(path):
-            dirs[:] = [d for d in dirs if d not in ('node_modules','.git','__pycache__','.next','dist','build','venv','.venv','art','static','reports')]
-            for f in files:
-                ext = os.path.splitext(f)[1].lstrip('.') or 'no_ext'
-                p["file_counts"][ext] = p["file_counts"].get(ext, 0) + 1
-                p["total_files"] += 1
+        # Quick file count (limit depth to 2 to avoid scanning huge node_modules)
+        try:
+            file_count = 0
+            for root, dirs, files in os.walk(path):
+                dirs[:] = [d for d in dirs if d not in ('node_modules', '.git', '__pycache__', '.next', 'dist', 'build', '.output')]
+                file_count += len(files)
+                if file_count > 500:  # Cap count to keep it fast
+                    break
+            p["total_files"] = file_count
+        except:
+            p["total_files"] = 0
 
-        if os.path.exists(os.path.join(path, "nuxt.config.ts")):
+        # Framework detection
+        if os.path.exists(os.path.join(path, "nuxt.config.ts")) or os.path.exists(os.path.join(path, "nuxt.config.js")):
             p["framework"] = "Nuxt 3"
+        elif os.path.exists(os.path.join(path, "package.json")):
+            p["framework"] = "Node.js"
+        elif any(f.endswith('.py') for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))):
+            p["framework"] = "Python"
 
+        # Check PROJECT.md for status/url
         proj_md = os.path.join(path, "PROJECT.md")
         if os.path.exists(proj_md):
-            content = open(proj_md).read().lower()
-            if "validation" in content: p["status"] = "validation"
-            elif "building" in content: p["status"] = "building"
-            elif "live" in content: p["status"] = "live"
-            urls = re.findall(r'https?://[^\s\)]+', content)
-            if urls: p["url"] = urls[0]
+            try:
+                content = open(proj_md).read().lower()
+                if "validation" in content: p["status"] = "validation"
+                elif "building" in content: p["status"] = "building"
+                elif "live" in content: p["status"] = "live"
+                urls = re.findall(r'https?://[^\s\)]+', content)
+                if urls: p["url"] = urls[0]
+            except:
+                pass
 
         projects.append(p)
     return projects
@@ -95,7 +119,9 @@ def scan_projects():
 
 def get_tweet_metrics(tweet_id):
     """Fetch metrics for a specific tweet."""
-    out = run_cmd(["xurl", "read", str(tweet_id)])
+    if not tweet_id:
+        return None
+    out = run_cmd(["xurl", "read", str(tweet_id)], timeout=3)
     if out:
         try:
             data = json.loads(out)
@@ -118,7 +144,6 @@ class Handler(SimpleHTTPRequestHandler):
         path = parsed.path.rstrip("/") or "/"
         query = parse_qs(parsed.query)
 
-        # API routes
         if path == "/api/projects":
             self.send_json({"projects": scan_projects()})
             return
@@ -130,31 +155,40 @@ class Handler(SimpleHTTPRequestHandler):
         if path == "/api/project/detail":
             name = query.get("name", [""])[0]
             data = load_data()
-            # Get display name and goal from project metadata
-            proj_meta = data.get("projects", {}).get(name, {})
-            display_name = proj_meta.get("display_name", name)
-            goal = proj_meta.get("goal", 50)
             
-            proj = next((p for p in scan_projects() if p["name"] == name), None)
+            # Find in scanned projects or project metadata
+            all_projs = scan_projects()
+            proj = next((p for p in all_projs if p["name"] == name), None)
+            
+            proj_meta = data.get("projects", {}).get(name, {})
+            
             if not proj:
-                self.send_json({"error": "Not found"}, 404)
+                # If directory name doesn't match, look up by metadata directory field
+                for k, v in data.get("projects", {}).items():
+                    if v.get("directory") == name or k == name:
+                        proj_meta = v
+                        proj = next((p for p in all_projs if p["name"] == v.get("directory")), None)
+                        break
+
+            if not proj and not proj_meta:
+                self.send_json({"error": "Not found", "name": name}, 404)
                 return
 
-            posts = [p for p in data.get("social_posts", []) if p.get("project") == name]
-            for post in posts:
-                if post.get("tweet_id"):
-                    metrics = get_tweet_metrics(post["tweet_id"])
-                    if metrics:
-                        post["metrics"] = metrics
-
+            base = proj or {"name": name, "framework": "unknown", "status": "unknown"}
+            
+            posts = [p for p in data.get("social_posts", []) if p.get("project") == name or p.get("project") == proj_meta.get("directory")]
+            
             detail = {
-                **proj,
-                "display_name": display_name,
-                "expenses": [e for e in data.get("expenses", []) if e.get("project") == name],
-                "total_spend": sum(e.get("cost", 0) for e in data.get("expenses", []) if e.get("project") == name),
+                **base,
+                "display_name": proj_meta.get("display_name", base.get("name")),
+                "goal": proj_meta.get("goal", 50),
+                "github": proj_meta.get("github"),
+                "cloudflare": proj_meta.get("cloudflare"),
+                "niche": proj_meta.get("niche"),
+                "expenses": [e for e in data.get("expenses", []) if e.get("project") == name or e.get("project") == proj_meta.get("directory")],
+                "total_spend": sum(e.get("cost", 0) for e in data.get("expenses", []) if e.get("project") == name or e.get("project") == proj_meta.get("directory")),
                 "social_posts": posts,
                 "waitlist_count": data.get("waitlist_count", 0),
-                "goal": goal,
             }
             self.send_json(detail)
             return
@@ -174,7 +208,6 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_json({"engagement": engagement})
             return
 
-        # Static files
         if path == "/" or path == "":
             path = "/index.html"
 
@@ -183,73 +216,6 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_file(file_path)
         else:
             self.send_json({"error": f"Not found: {path}"}, 404)
-
-    def do_POST(self):
-        parsed = urlparse(self.path)
-        path = parsed.path.rstrip("/")
-        cl = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(cl).decode() if cl > 0 else ""
-
-        if path == "/api/social/add":
-            try:
-                data = json.loads(body)
-                all_data = load_data()
-                post = {"id": int(time.time()*1000), "platform": data.get("platform","X"),
-                        "handle": data.get("handle","@tkayosf"), "text": data.get("text",""),
-                        "scheduled_date": data.get("scheduled_date",""),
-                        "scheduled_time": data.get("scheduled_time","09:00"),
-                        "image": data.get("image",False), "posted": data.get("posted",False),
-                        "project": data.get("project",""), "tweet_id": data.get("tweet_id")}
-                all_data["social_posts"].append(post)
-                save_data(all_data)
-                self.send_json({"success": True, "id": post["id"]})
-            except Exception as e:
-                self.send_json({"success": False, "error": str(e)}, 500)
-            return
-
-        if path == "/api/social/mark_posted":
-            try:
-                req = json.loads(body)
-                all_data = load_data()
-                for p in all_data["social_posts"]:
-                    if p["id"] == req.get("id"):
-                        p["posted"] = True
-                        if req.get("tweet_id"):
-                            p["tweet_id"] = req["tweet_id"]
-                        break
-                save_data(all_data)
-                self.send_json({"success": True})
-            except Exception as e:
-                self.send_json({"success": False, "error": str(e)}, 500)
-            return
-
-        if path == "/api/waitlist/update":
-            try:
-                req = json.loads(body)
-                all_data = load_data()
-                all_data["waitlist_count"] = req.get("count", 0)
-                save_data(all_data)
-                self.send_json({"success": True})
-            except Exception as e:
-                self.send_json({"success": False, "error": str(e)}, 500)
-            return
-
-        if path == "/api/expense/add":
-            try:
-                req = json.loads(body)
-                all_data = load_data()
-                exp = {"id": int(time.time()*1000),
-                       "date": req.get("date", time.strftime("%Y-%m-%d")),
-                       "item": req.get("item",""), "category": req.get("category","Other"),
-                       "cost": float(req.get("cost",0)), "project": req.get("project","")}
-                all_data["expenses"].append(exp)
-                save_data(all_data)
-                self.send_json({"success": True})
-            except Exception as e:
-                self.send_json({"success": False, "error": str(e)}, 500)
-            return
-
-        self.send_json({"error": "Not found"}, 404)
 
     def send_json(self, data, status=200):
         resp = json.dumps(data, default=str).encode()

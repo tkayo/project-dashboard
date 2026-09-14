@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Project Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+  <div id="app" class="max-w-7xl mx-auto px-6 py-8">
+    <div class="mb-8">
+      <h1 class="text-3xl font-bold text-gray-900">Projects</h1>
+      <p class="text-gray-600 mt-1">Portfolio Dashboard — {{ new Date().toLocaleDateString() }}</p>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+        <div class="text-sm text-gray-500">Active Projects</div>
+        <div class="text-2xl font-bold text-gray-900 mt-1">{{ activeProjects.length }}</div>
+      </div>
+      <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+        <div class="text-sm text-gray-500">Total Spend</div>
+        <div class="text-2xl font-bold text-gray-900 mt-1">${{ totalSpend.toFixed(2) }}</div>
+      </div>
+      <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+        <div class="text-sm text-gray-500">Scheduled Posts</div>
+        <div class="text-2xl font-bold text-gray-900 mt-1">{{ pendingPosts.length }}</div>
+      </div>
+      <div class="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+        <div class="text-sm text-gray-500">Total Posts</div>
+        <div class="text-2xl font-bold text-gray-900 mt-1">{{ allPosts.length }}</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="mb-6 border-b border-gray-200">
+      <nav class="flex gap-6">
+        <button v-for="tab in tabs" :key="tab" @click="activeTab = tab"
+          :class="activeTab === tab ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+          class="py-2 px-1 border-b-2 font-medium text-sm capitalize">
+          {{ tab }}
+        </button>
+      </nav>
+    </div>
+
+    <!-- Projects Tab -->
+    <div v-if="activeTab === 'projects'" class="bg-white rounded-xl shadow-sm border border-gray-200">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-gray-50 text-gray-600">
+            <tr>
+              <th class="px-6 py-3 font-medium">Project</th>
+              <th class="px-6 py-3 font-medium">Status</th>
+              <th class="px-6 py-3 font-medium">Framework</th>
+              <th class="px-6 py-3 font-medium">Last Commit</th>
+              <th class="px-6 py-3 font-medium">URL</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="p in projects" :key="p.name" class="border-t border-gray-100 hover:bg-gray-50">
+              <td class="px-6 py-4 font-medium text-gray-900">{{ p.name }}</td>
+              <td class="px-6 py-4">
+                <span :class="statusColor(p.status)" class="px-2 py-1 rounded-full text-xs font-medium">
+                  {{ p.status }}
+                </span>
+              </td>
+              <td class="px-6 py-4 text-gray-600">{{ p.framework }}</td>
+              <td class="px-6 py-4 text-gray-600 text-xs">
+                <div v-if="p.git_last_commit_msg">{{ p.git_last_commit_msg }}</div>
+                <div v-else class="text-gray-400">—</div>
+              </td>
+              <td class="px-6 py-4">
+                <a v-if="p.url" :href="p.url" target="_blank" class="text-blue-600 hover:underline text-xs">
+                  {{ p.url.replace('https://','') }}
+                </a>
+                <span v-else class="text-gray-400">—</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Social Tab -->
+    <div v-if="activeTab === 'social'">
+      <!-- Add Post Form -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <h3 class="font-semibold text-gray-900 mb-4">Schedule Post</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <select v-model="newPost.platform" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <option value="X">X/Twitter</option>
+            <option value="Instagram">Instagram</option>
+            <option value="Reddit">Reddit</option>
+            <option value="TikTok">TikTok</option>
+          </select>
+          <select v-model="newPost.project" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <option value="">Select Project</option>
+            <option v-for="p in projects" :key="p.name" :value="p.name">{{ p.name }}</option>
+          </select>
+          <input v-model="newPost.scheduled_date" type="date" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          <input v-model="newPost.scheduled_time" type="time" value="09:00" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <textarea v-model="newPost.text" rows="3" placeholder="Post text..." class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm mb-4"></textarea>
+        <div class="flex items-center gap-4">
+          <label class="flex items-center gap-2 text-sm text-gray-600">
+            <input type="checkbox" v-model="newPost.image" /> Includes Image
+          </label>
+          <button @click="addPost" class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700">
+            Schedule
+          </button>
+        </div>
+      </div>
+
+      <!-- Posts List -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div class="divide-y divide-gray-100">
+          <div v-for="post in allPosts" :key="post.id" class="px-6 py-4 flex items-start gap-4">
+            <div class="w-20 text-center text-xs text-gray-500 mt-1">
+              <div class="font-semibold">{{ formatDate(post.scheduled_date) }}</div>
+              <div>{{ post.scheduled_time }}</div>
+            </div>
+            <div class="flex-1 min-w-0">
+              <p class="text-gray-900 text-sm whitespace-pre-line">{{ post.text }}</p>
+              <div class="mt-2 flex gap-2 items-center">
+                <span class="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">{{ post.platform }}</span>
+                <span v-if="post.project" class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded">{{ post.project }}</span>
+                <span v-if="post.image" class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded">📷 Image</span>
+                <span :class="post.posted ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'" class="text-xs px-2 py-0.5 rounded">
+                  {{ post.posted ? '✅ Posted' : '⏳ Pending' }}
+                </span>
+                <button v-if="!post.posted" @click="markPosted(post.id)" class="text-xs text-blue-600 hover:underline ml-auto">
+                  Mark Posted
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Expenses Tab -->
+    <div v-if="activeTab === 'expenses'">
+      <!-- Add Expense Form -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+        <h3 class="font-semibold text-gray-900 mb-4">Add Expense</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <input v-model="newExpense.item" placeholder="Item description" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          <select v-model="newExpense.category" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+            <option value="Software">Software</option>
+            <option value="Domain">Domain</option>
+            <option value="Marketing">Marketing</option>
+            <option value="Tools">Tools</option>
+            <option value="Other">Other</option>
+          </select>
+          <input v-model="newExpense.cost" type="number" step="0.01" placeholder="Cost ($)" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+          <input v-model="newExpense.date" type="date" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+        </div>
+        <button @click="addExpense" class="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700">
+          Add Expense
+        </button>
+      </div>
+
+      <!-- Expenses List -->
+      <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+        <div class="divide-y divide-gray-100">
+          <div v-for="exp in expenses" :key="exp.id" class="px-6 py-3 flex justify-between text-sm">
+            <div>
+              <span class="text-gray-900">{{ exp.item }}</span>
+              <span class="text-gray-500 ml-2">{{ exp.category }}</span>
+            </div>
+            <div class="flex gap-4">
+              <span class="text-gray-500">{{ exp.date }}</span>
+              <span class="font-medium text-gray-900">${{ exp.cost.toFixed(2) }}</span>
+            </div>
+          </div>
+          <div class="px-6 py-3 flex justify-between text-sm font-semibold bg-gray-50">
+            <span>Total</span>
+            <span>${{ totalSpend.toFixed(2) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+
+    createApp({
+      data() {
+        return {
+          activeTab: 'projects',
+          tabs: ['projects', 'social', 'expenses'],
+          projects: [],
+          allPosts: [],
+          expenses: [],
+          newPost: {
+            platform: 'X',
+            project: '',
+            text: '',
+            scheduled_date: new Date().toISOString().split('T')[0],
+            scheduled_time: '09:00',
+            image: false,
+          },
+          newExpense: {
+            item: '',
+            category: 'Software',
+            cost: '',
+            date: new Date().toISOString().split('T')[0],
+          },
+        };
+      },
+      computed: {
+        activeProjects() {
+          return this.projects.filter(p => p.status !== 'killed');
+        },
+        pendingPosts() {
+          return this.allPosts.filter(p => !p.posted);
+        },
+        totalSpend() {
+          return this.expenses.reduce((sum, e) => sum + (e.cost || 0), 0);
+        },
+      },
+      methods: {
+        async loadProjects() {
+          const res = await fetch('/api/projects');
+          const data = await res.json();
+          this.projects = data.projects || [];
+        },
+        async loadData() {
+          const res = await fetch('/api/data');
+          const data = await res.json();
+          this.allPosts = data.social_posts || [];
+          this.expenses = data.expenses || [];
+        },
+        async addPost() {
+          await fetch('/api/social/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(this.newPost),
+          });
+          this.newPost.text = '';
+          this.newPost.image = false;
+          this.loadData();
+        },
+        async markPosted(id) {
+          await fetch('/api/social/mark_posted', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id }),
+          });
+          this.loadData();
+        },
+        async addExpense() {
+          if (!this.newExpense.item || !this.newExpense.cost) return;
+          await fetch('/api/expense/add', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(this.newExpense),
+          });
+          this.newExpense.item = '';
+          this.newExpense.cost = '';
+          this.loadData();
+        },
+        formatDate(dateStr) {
+          if (!dateStr) return '';
+          try {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+          } catch {
+            return dateStr;
+          }
+        },
+        statusColor(status) {
+          const colors = {
+            validation: 'bg-yellow-100 text-yellow-800',
+            building: 'bg-blue-100 text-blue-800',
+            live: 'bg-green-100 text-green-800',
+            killed: 'bg-red-100 text-red-800',
+            unknown: 'bg-gray-100 text-gray-800',
+          };
+          return colors[status] || colors.unknown;
+        },
+      },
+      mounted() {
+        this.loadProjects();
+        this.loadData();
+      },
+    }).mount('#app');
+  </script>
+</body>
+</html>
